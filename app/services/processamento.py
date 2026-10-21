@@ -35,7 +35,6 @@ def ler_tabela(conteudo:bytes, nome:str)-> pd.DataFrame:
         return pd.read_excel(io.BytesIO(conteudo), dtype=str, keep_default_na=False, engine='openpyxl')
     raise ValueError('Formato não suportado. Envie .csv (UTF-8, separado por ;) ou .xlsx.')
      
-
 def processar_dados(conteudo:str, nome:str) -> dict:
     df = ler_tabela(conteudo, nome)
     if len(df) > MAX_LINHAS:

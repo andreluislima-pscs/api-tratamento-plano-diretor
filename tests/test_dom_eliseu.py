@@ -1,4 +1,4 @@
-from app.dom_eliseu import ajustar, decimal_br, analisar
+from app.processador_plano_diretor import ajustar, decimal_br, analisar
 from pathlib import Path
 
 def test_preserva_identificador():

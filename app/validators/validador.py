@@ -78,7 +78,6 @@ def obter_limites_bigint(sem_sinal:bool):
     if sem_sinal:
         return(0, 10**18-1)
     return (-10**18 + 1, 10**18 - 1)
-
         
 def obter_limites_int(bits:int, sem_sinal:bool = False):
     if bits >= 11:

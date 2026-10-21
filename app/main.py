@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.dom_eliseu import analisar
+from app.processador_plano_diretor import analisar
 
 app = FastAPI(title="Mantis 29943 - Tratamento de erros em planilha - Plano Diretor", version="0.2.0")
 
@@ -22,7 +22,7 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return FileResponse(Path(__file__).resolve().parent.parent / "pagina_web.html")
+    return FileResponse(Path(__file__).resolve().parent.parent / "index.html")
 
 
 @app.post("/api/processar")
