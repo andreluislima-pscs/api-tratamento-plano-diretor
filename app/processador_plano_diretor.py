@@ -2,6 +2,7 @@
 from __future__ import annotations
 import io
 import re
+import unicodedata
 from collections import Counter
 from decimal import Decimal, InvalidOperation
 import pandas as pd
@@ -15,15 +16,52 @@ ABAS = {
     'Atividades Especiais': ['Código CNAE','Descrição','Operação'],
 }
 
+TIPOS_LOGRADOURO = {
+    "RUA",
+    "AVENIDA",
+    "AV",
+    "TRAVESSA",
+    "TV",
+    "ALAMEDA",
+    "ESTRADA",
+    "RODOVIA",
+    "PRAÇA",
+    "PRACA",
+    "LARGO",
+    "BECO",
+    "VIELA",
+    "VIA",
+    "CAMINHO",
+    "PASSAGEM",
+    "LADEIRA",
+    "QUADRA",
+    "LOTEAMENTO",
+}
+
 LIMITES_REFERENCIA = {'Tipo de logradouro':20, 'Logradouro':150,'Número':10,'Complemento':255,'Bairro':60,'CEP':8,'Inscrição Imobiliária':20,'Cadastro Imobiliário':40}
 MAX_EXIBIR = 150
 
+def padroniza_tipo_logradouro(texto:str)-> str:
+    texto = str(texto or "").strip().upper()
+    
+    texto = unicodedata.normalize("NFKD", texto) # Padroniza o texto em apenas um, independente da acentuação.
+    texto = "".join( c for c in texto if not unicodedata.combining(c))
+    
+    return re.sub(r"\s+", " ", texto)
+
+def eh_tipo_logradouro(valor:str) -> bool:
+    return padroniza_tipo_logradouro(valor) in {
+        padroniza_tipo_logradouro(tipo) for tipo in TIPOS_LOGRADOURO
+    }
+
 def ajustar(campo:str, valor:str) -> str:
     novo = valor.strip()
+    
     if campo == "CEP":
         novo = re.sub(r'[.\-\s]', '', novo)
     if campo == "Número" and re.fullmatch(r'\d+\.0', novo):
         novo = novo[:-2]
+
     return novo
 
 def decimal_br(valor:str) -> bool:
@@ -127,3 +165,13 @@ def analisar (conteudo:bytes, exportar:bool=False):
                             for cel in celulas:cel.number_format='@'
         return resposta,destino.getvalue()
     return resposta,None
+
+def ajustar_linha(linha:dict) -> dict:
+    tipo = str(linha.get('Tipo de logradouro') or '').strip()
+    logradouro = str(linha.get('Logradouro') or '').strip()
+    
+    if(not eh_tipo_logradouro(tipo) and eh_tipo_logradouro(logradouro)):
+        linha["Tipo de logradouro"] = logradouro
+        linha["Logradouro"] = tipo
+        
+    return linha

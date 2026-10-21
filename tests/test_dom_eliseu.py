@@ -1,5 +1,7 @@
-from app.processador_plano_diretor import ajustar, decimal_br, analisar
+from app.processador_plano_diretor import ajustar, decimal_br, analisar, ajustar_linha
 from pathlib import Path
+import pytest
+
 
 def test_preserva_identificador():
     assert ajustar('Inscrição Imobiliária',' 0010101000000000001 ')=='0010101000000000001'
@@ -18,7 +20,7 @@ def test_numero_sn():
 
 # Teste opcional de integração contra a planilha original (não incluída no ZIP).
 def test_integracao_dom_eliseu():
-    arquivo = Path(__file__).resolve().parent /'PD_Dom_Eliseu_PA4.xlsx'
+    arquivo = Path(__file__).resolve().parent /'PD_Dom_Eliseu_PA.xlsx'
     
     assert arquivo.exists(), f'Planilha não encontrada: {arquivo}'
 
@@ -31,3 +33,38 @@ def test_integracao_dom_eliseu():
     assert dados['totalErros']>=16
 
     assert arquivo_corrigido is None
+    
+@pytest.mark.parametrize(
+    "tipo, logradouro, esperando_tipo, esperando_logradouro",
+    [
+        (
+            "ANTONIO JESUS DE OLIVEIRA",
+            "Rua",
+            "Rua",
+            "ANTONIO JESUS DE OLIVEIRA"
+        ),
+        (
+            "Avenida",
+            "Getúlio Vargas",
+            "Avenida",
+            "Getúlio Vargas"
+        ),
+        (
+            "Presidente Vargas",
+            "Travessa",
+            "Travessa",
+            "Presidente Vargas"
+        ),
+    ]
+)
+def ajustar_tipo_logradouro(tipo, logradouro, esperando_tipo, esperando_logradouro):
+    linha = {
+        "Tipo de logradouro": tipo,
+        "Logradouro":logradouro
+    }
+    
+    resultado = ajustar_linha(linha)
+    
+    assert resultado["Tipo de logradouro"] == esperando_tipo
+    assert resultado["Logradouro"] == esperando_logradouro
+     
