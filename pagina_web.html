@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mantis 29943 — Dom Eliseu</title>
+    <style>
+      :root {
+        font-family:
+          Segoe UI,
+          Arial,
+          sans-serif;
+        background: #f4f6fb;
+        color: #18273a;
+      }
+      body {
+        margin: 0;
+      }
+      .wrap {
+        max-width: 1120px;
+        margin: 35px auto;
+        padding: 0 18px;
+      }
+      .hero {
+        background: linear-gradient(120deg, #0c3155, #164e7e);
+        color: white;
+        padding: 30px;
+        border-radius: 16px;
+      }
+      .hero h1 {
+        margin: 8px 0;
+      }
+      .safe {
+        color: #bdecd8;
+      }
+      .card {
+        background: white;
+        border: 1px solid #dce4ee;
+        border-radius: 14px;
+        padding: 23px;
+        margin-top: 16px;
+      }
+      input {
+        display: block;
+        margin-top: 12px;
+      }
+      button {
+        border: 0;
+        background: #156bb5;
+        color: white;
+        padding: 13px 20px;
+        border-radius: 9px;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 14px 8px 0 0;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      button.alt {
+        background: #157448;
+      }
+      .muted {
+        color: #617087;
+        font-size: 14px;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+        gap: 12px;
+      }
+      .metric {
+        background: #eff5fb;
+        padding: 16px;
+        border-radius: 10px;
+      }
+      .metric strong {
+        display: block;
+        font-size: 25px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px;
+        border-bottom: 1px solid #e5eaf1;
+        overflow-wrap: anywhere;
+      }
+      th {
+        background: #eef3f8;
+      }
+      .scroll {
+        overflow-x: auto;
+        max-height: 340px;
+        overflow-y: auto;
+      }
+      .error {
+        color: #b52727;
+      }
+      .ok {
+        color: #177346;
+      }
+      .notice {
+        background: #fff5df;
+        padding: 11px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <small>LABORATÓRIO • MANTIS 29943</small>
+        <h1>Saneamento do Plano Diretor</h1>
+        <p>
+          Referência: PD_Dom_Eliseu_PA.xlsx · 6 abas · importação multia­bas
+        </p>
+        <strong class="safe"
+          >Modo seguro: sem integração com Java e sem gravação em banco</strong
+        >
+      </header>
+      <section class="card">
+        <h2>1. Importar planilha</h2>
+        <p>
+          Selecione o modelo original de Dom Eliseu (.xlsx, até 10 MB). A
+          estrutura e a ordem das abas são verificadas.
+        </p>
+        <input id="arquivo" type="file" accept=".xlsx" /><button id="analisar">
+          Analisar e corrigir</button
+        ><button class="alt" id="baixar" disabled>Baixar XLSX saneado</button>
+        <p class="muted">
+          Correções automáticas: espaços nas bordas; máscaras de CEP; números no
+          formato 123.0. Valores duvidosos são sinalizados, nunca inventados ou
+          truncados.
+        </p>
+      </section>
+      
+      <section class="card" id="result" hidden>
+        <h2>2. Relatório de processamento</h2>
+        <p id="estado"></p>
+        <div class="metrics">
+          <div class="metric">Registros <strong id="linhas"></strong></div>
+          <div class="metric">Correções <strong id="correcoes"></strong></div>
+          <div class="metric">Erros <strong id="errosN"></strong></div>
+          <div class="metric">Avisos <strong id="avisosN"></strong></div>
+        </div>
+        <h3>Registros por aba</h3>
+        <div id="abas"></div>
+        <h3>Correções realizadas</h3>
+        <div class="scroll" id="auditoria"></div>
+        <h3>Erros que bloqueiam exportação</h3>
+        <div class="scroll" id="erros"></div>
+        <h3>Avisos para conferência</h3>
+        <div class="scroll" id="avisos"></div>
+        <p class="muted">
+          Relatórios exibem até 150 ocorrências por grupo. A planilha original
+          permanece intacta.
+        </p>
+      </section>
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id),
+        esc = (v) =>
+          String(v ?? "").replace(
+            /[&<>"']/g,
+            (c) =>
+              ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              })[c],
+          );
+      function tabela(itens, colunas) {
+        if (!itens || !itens.length)
+          return '<p class="muted">Nenhum registro.</p>';
+        return (
+          "<table><thead><tr>" +
+          colunas.map((c) => "<th>" + esc(c) + "</th>").join("") +
+          "</tr></thead><tbody>" +
+          itens
+            .map(
+              (item) =>
+                "<tr>" +
+                colunas.map((c) => "<td>" + esc(item[c]) + "</td>").join("") +
+                "</tr>",
+            )
+            .join("") +
+          "</tbody></table>"
+        );
+      }
+      function dados() {
+        let file = $("arquivo").files[0];
+        if (!file) throw Error("Selecione a planilha XLSX.");
+        let fd = new FormData();
+        fd.append("arquivo", file);
+        return fd;
+      }
+      $("arquivo").onchange = () => {
+        $("baixar").disabled = true;
+        $("result").hidden = true;
+      };
+      $("analisar").onclick = async () => {
+        try {
+          $("analisar").disabled = true;
+          $("result").hidden = false;
+          $("estado").textContent = "Analisando as seis abas...";
+          const res = await fetch("/api/processar", {
+            method: "POST",
+            body: dados(),
+          });
+          const r = await res.json();
+          if (!res.ok) throw Error(r.detail || "Falha de validação");
+          $("linhas").textContent = r.linhasRecebidas;
+          $("correcoes").textContent = r.totalCorrecoes;
+          $("errosN").textContent = r.totalErros;
+          $("avisosN").textContent = r.totalAvisos;
+          $("estado").textContent = r.sucesso
+            ? "Validação concluída: arquivo elegível para exportação."
+            : "Existem inconsistências; exportação bloqueada para evitar perda de dados.";
+          $("estado").className = r.sucesso ? "ok" : "error";
+          $("baixar").disabled = !r.sucesso;
+          $("abas").innerHTML = tabela(
+            Object.entries(r.abas).map(([aba, registros]) => ({
+              aba,
+              registros,
+            })),
+            ["aba", "registros"],
+          );
+          $("auditoria").innerHTML = tabela(r.auditoria, [
+            "aba",
+            "linha",
+            "coluna",
+            "antes",
+            "depois",
+          ]);
+          $("erros").innerHTML = tabela(r.erros, [
+            "aba",
+            "linha",
+            "coluna",
+            "valor",
+            "mensagem",
+          ]);
+          $("avisos").innerHTML = tabela(r.avisos, [
+            "aba",
+            "linha",
+            "coluna",
+            "valor",
+            "mensagem",
+          ]);
+        } catch (e) {
+          $("estado").className = "error";
+          $("estado").textContent = "Erro: " + e.message;
+          $("baixar").disabled = true;
+        } finally {
+          $("analisar").disabled = false;
+        }
+      };
+      $("baixar").onclick = async () => {
+        try {
+          $("baixar").disabled = true;
+          const res = await fetch("/api/baixar", {
+            method: "POST",
+            body: dados(),
+          });
+          if (!res.ok) {
+            const d = await res.json();
+            throw Error(d.detail || "Erro ao gerar arquivo");
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          let a = document.createElement("a");
+          a.href = url;
+          a.download = "plano_diretor_saneado.xlsx";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e) {
+          alert(e.message);
+        } finally {
+          $("baixar").disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>
