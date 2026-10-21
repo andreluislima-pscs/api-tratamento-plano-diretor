@@ -1,7 +1,8 @@
+import io
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi import UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.processador_plano_diretor import analisar
 
@@ -34,6 +35,39 @@ async def processar(arquivo:UploadFile = File(...)):
         
         return resultado
 
+    except ValueError as erro:
+        raise HTTPException(
+            status_code=400,
+            detail=str(erro)
+        )
+    
+@app.post("/api/baixar")    
+async def baixar(arquivo: UploadFile = File(...)):
+    try:
+        conteudo = await arquivo.read()
+    
+        resultado, arquivo_corrigido = analisar(
+            conteudo,
+            exportar=True
+        )
+        
+        if arquivo_corrigido is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "mensagem":"A planilha apresenta erros que impedem a exportação.",
+                    "totalErros":resultado["totalErros"],
+                    "erros":resultado["erros"]
+                }
+            )
+        return StreamingResponse(
+            io.BytesIO(arquivo_corrigido),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": 'attachment; filename="plano_diretor_corrigido.xlsx"'
+            }
+        )
+        
     except ValueError as erro:
         raise HTTPException(
             status_code=400,
